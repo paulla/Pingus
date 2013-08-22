@@ -14,6 +14,7 @@ import supybot.ircmsgs as ircmsgs
 import supybot.dbi as dbi
 import random
 from datetime import datetime
+from os import system
 
 class PingusRecord(dbi.Record):
     __fields__ = [
@@ -90,16 +91,46 @@ class Pingus(callbacks.Plugin):
             else:
                 text = msg.args[1]
             if 'ping' in text.lower():
-                self.ping(irc, msg, channel, text)
+                text = text.replace('!','')\
+                        .replace(',','')\
+                        .replace(':','')\
+                        .replace('?','')
+                if len(text.split()) == 2:        
+                    if text.lower().startswith('ping'):
+                        self.ping(irc, msg, channel, text, inverse=True)
+                    elif text.lower().endswith('ping'):
+                        self.ping(irc, msg, channel, text)
             elif 'pong' in text.lower():
-                self.pong(irc, msg, channel, text)
+                text = text.replace(',','')\
+                        .replace(':','')\
+                        .replace('!','')\
+                        .replace('?','')
+                if len(text.split()) == 2:        
+                    if text.lower().startswith('pong'):
+                        self.pong(irc, msg, channel, text, inverse=True)
+                    elif text.lower().endswith('pong'):
+                        self.pong(irc, msg, channel, text)
 
-    def ping(self, irc, msg, channel, text):
+    def ping(self, irc, msg, channel, text, inverse=None):
         if 'solevis' in text.lower():
             irc.reply('On ne ping pas solevis !!')
             irc.reply("C'est solevis qui te ping !!")
         else:
-            nick = text.split()[0][:-1]
+            if inverse:
+                nick = text.split()[1]
+                network = system('ping -c 1 %s' % nick)
+                if network == 0:
+                    irc.reply("Aucun probleme pour joindre %s" % nick)
+                    return
+                elif network == 512:
+                    irc.reply("%s ne repond pas d'ici!" % nick)
+                    return
+                elif network == 17408:
+                    pass
+                else:
+                    return
+            else:
+                nick = text.split()[0].replace(':','').replace(',','')
             if not nick in irc.state.channels[channel].users:
                 texte = "92 bytes from %s (%s): Destination Net\
 Unreachable" % (nick,msg.nick)
@@ -108,12 +139,16 @@ Unreachable" % (nick,msg.nick)
             else:
                 self.db.addping(nick, msg)
 
-    def pong(self, irc, msg, channel, text):
+
+    def pong(self, irc, msg, channel, text, inverse=None):
         if 'solevis' in msg.nick.lower():
             irc.reply("HO MY GOD !! IS ALIIIIIVE !!")
         else:    
             now = datetime.now()
-            nick = text.split()[0][:-1]
+            if inverse:
+                nick = text.split()[1]
+            else:
+                nick = text.split()[0].replace(':','').replace(',','')
             ping = self.db.pong(nick, msg)
             if ping:
                 time = now - datetime.fromtimestamp(ping['at'])
@@ -121,6 +156,7 @@ Unreachable" % (nick,msg.nick)
                         (msg.nick,time.total_seconds())
                 irc.sendMsg(ircmsgs.privmsg(channel, texte))
                 irc.noReply()
+
 
     def timeout(self, irc, channel):
         out = self.db.find_timeout()
