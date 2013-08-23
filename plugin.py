@@ -65,6 +65,9 @@ class DbiPingusDB(dbi.DB):
             time = datetime.now() - datetime.fromtimestamp(not_pong.at)
             if time.total_seconds() > 3600:
                 to_return.append(not_pong)
+                record = self.Record(nick = not_pong.nick, by = not_pong.by,at =\
+                        not_pong.at, ponged = 1)
+                self.set(not_pong.id, record)
         return to_return
 
 PINGDB = plugins.DB('Pingus', {'flat': DbiPingusDB}) 
